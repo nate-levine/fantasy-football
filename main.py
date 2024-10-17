@@ -3,157 +3,114 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-# NFL-DATA-PY
-# pbp = nfl.import_pbp_data([2023])
 
-# # Get pbp when it is a pass or rush
-# pbp_rp = pbp[(pbp['pass'] == 1) | (pbp['rush'] == 1)]
-# pbp_rp = pbp_rp.dropna(subset=['epa', 'posteam', 'defteam'])
+class League:
+    def __init__(self):
+        with open('json/league.json') as file:
+            data = json.load(file)
+        self.data = data
 
-# # Passing EPA
-# # Select from passes, group by possesion team, mean EPA, reset index so its a dataframe, rename to pass EPA
-# pass_epa = pbp_rp[(pbp['pass'] == 1)].groupby('posteam')['epa'].mean().reset_index().rename(columns = {'epa' : 'pass_epa'})
+class Matchup:
+    def __init__(self, week):
+        with open(f'json/matchups/matchups_week_{week}.json') as file:
+            data = json.load(file)
+        self.df = pd.DataFrame(data)
 
-# # Rushing EPA
-# rush_epa = pbp_rp[(pbp['rush'] == 1)].groupby('posteam')['epa'].mean().reset_index().rename(columns = {'epa' : 'rush_epa'})
+class Player:
+    def __init__(self):
+        with open('json/players.json') as file:
+            data = json.load(file)
+        self.df = pd.DataFrame(data).transpose()
+    
+    def get_player_id_from_full_name(self, full_name):
+        return self.df[(self.df['full_name'] == full_name)]['player_id'].item()
 
-# # Combine datasets
-# epa = pd.merge(pass_epa, rush_epa, on='posteam')
-# print(epa)
-
-# ESPN API
-# url = 'https://sports.core.api.espn.com/v3/sports/football/nfl/athletes?limit=18000'
-# jsonData = requests.get(url).json()
-
-# players = pd.DataFrame(jsonData['items'])
-# # players = players[['id', 'fullName']]
-# tb = players[(players['fullName'] == "Tom Brady")]
-# print(tb)
-
-# SLEEPER API
-# https://docs.sleeper.com/
-
-def get_player_projection(player_stats, scoring_settings):
-    projection = 0
-    # get stats from projections
-    for stats in player_stats:
-        # for each stat
-        for stat in stats:
-            # if key from player stats is an actual stat
-            if stat in scoring_settings:
-                # multiply the scoring setting number with the player's projected number for that stat
-                stat_projection = scoring_settings[stat] * stats[stat]
-                # add to projected total for player
-                projection += stat_projection
-    return projection
+    def get_full_name_from_player_id(self, player_id):
+        return self.df[(self.df['player_id'] == player_id)]['full_name'].item()
 
 
-def get_user_id_from_display_name(users, display_name):
-    return users[display_name]['user_id']
+class Roster:
+    def __init__(self):
+        with open('json/rosters.json') as file:
+            data = json.load(file)
+        self.df = pd.DataFrame(data)
 
+class User:
+    def __init__(self):
+        with open('json/users.json') as file:
+            data = json.load(file)
+        self.df = pd.DataFrame(data)
 
-def get_display_name_from_user_id(users, user_id):
-    return users[user_id]['display_name']
+    def get_user_id_from_display_name(self, display_name):
+        return self.df[(self.df['display_name'] == display_name)]['user_id'].item()
 
+    def get_display_name_from_user_id(self, user_id):
+        return self.df[(self.df['user_id'] == user_id)]['display_name'].item()
+    
+class WeeklyProjections:
+    def __init__(self, week):
+        with open(f'json/projections/projections_week_{week}.json') as file:
+            data = json.load(file)
+        self.df = pd.DataFrame(data)
 
-# read JSON from file
-with open('json/league.json') as file:
-    league_data = json.load(file)
-with open('json/players.json') as file:
-    players_data = json.load(file)
-# for each week
-projections_data = []
-for week in range(1, 19):
-    with open(f'json/projections/projections_week_{week}.json') as file:
-        projections_data.append(json.load(file))
-with open('json/rosters.json') as file:
-    rosters_data = json.load(file)
-with open('json/users.json') as file:
-    users_data = json.load(file)
+    def get_player_projected_points(self, player_id, scoring_settings):
+        projection = 0
+        # get player projections
+        player_projection = self.df[(self.df['player_id'] == player_id)]['stats']
+        # get stats from projections
+        for stats in player_projection:
+            # for each stat
+            for stat in stats:
+                # if key from player stats is an actual stat
+                if stat in scoring_settings:
+                    # multiply the scoring setting number with the player's projected number for that stat
+                    stat_projection = scoring_settings[stat] * stats[stat]
+                    # add to projected total for player
+                    projection += stat_projection
+        return projection
 
-# create dataframes
-projections_df = pd.DataFrame(projections_data[2])
-users_df = pd.DataFrame(users_data)
-
-
-data = []
-
-# create dict of user IDs and names
-userDict = {}
-for user in users_data:
-    userDict[user['user_id']] = user['display_name']
-
-# print roster owner name and thier players
-for roster in rosters_data:
-    for player_id in roster['starters']: # CHANGE FROM 'starters' TO 'players' TO INCLUDE PLAYERS ON TEAMS THAT ARE NOT STARTING
-        owner_id = roster['owner_id']
-        owner_name = userDict[roster['owner_id']]
-        position = players_data[f'{player_id}']['position']
-        projected_points = get_player_projection(projections_df[(projections_df['player_id'] == player_id)]['stats'], league_data['scoring_settings'])
-        if player_id.isnumeric():
-            player_name = players_data[f'{player_id}']['full_name']
-            data.append([player_id, player_name, owner_id, owner_name, position, projected_points])
+class WeeklyStatistics:
+    def __init__(self, week):
+        with open(f'json/stats/stats_week_{week}.json') as file:
+            data = json.load(file)
+        self.df = pd.DataFrame(data)
+    
+    def get_player_scored_points(self, player_id, scoring_settings):
+        scored = 0
+        # get player stats
+        if not self.df.empty and (self.df['player_id'] == player_id).any():
+            player_stats = self.df[(self.df['player_id'] == player_id)]['stats']
+            # get stats
+            for stats in player_stats:
+                # for each stat
+                for stat in stats:
+                    # if key from player stats is an actual stat
+                    if stat in scoring_settings:
+                        # multiply the scoring setting number with the player's stat
+                        stat_scored = scoring_settings[stat] * stats[stat]
+                        # add to projected total for player
+                        scored += stat_scored
+            return scored
         else:
-            player_name = player_id
-            data.append([player_id, player_name, owner_id, owner_name, position, projected_points])
+            print(f'Error: Player {player_id} has not played this week.')
 
 
-Player_df = pd.DataFrame(data, columns=['Player ID', 'Player Name', "Owner ID", "Owner Name", "Position", "Projected Points"])
-print(Player_df.to_string())
-
-# data = {}
-# for user in userDict:
-#     roster = Player_df[(Player_df['Position'] == 'WR')]
-#     roster = roster[(Player_df['Owner ID'] == user)]
-#     roster = roster.sort_values('Projected Points', ascending=False)
-#     data[userDict[user]] = list(roster['Projected Points'])
+#================
 
 
-# for owner in data:
-#     plt.plot(data[owner], label=f"{owner}")
-# plt.legend()
-# plt.show()
-qb_sums = np.zeros(10)
-rb_sums = np.zeros(10)
-wr_sums = np.zeros(10)
-te_sums = np.zeros(10)
-k_sums = np.zeros(10)
-def_sums = np.zeros(10)
-for i, user in enumerate(userDict):
-    roster = Player_df[(Player_df['Owner ID'] == user) & (Player_df['Position'] == 'QB')]
-    qb_sum = roster['Projected Points'].sum()
-    qb_sums[i] = qb_sum
-    
-    roster = Player_df[(Player_df['Owner ID'] == user) & (Player_df['Position'] == 'RB')]
-    rb_sum = roster['Projected Points'].sum()
-    rb_sums[i] = rb_sum
-    
-    roster = Player_df[(Player_df['Owner ID'] == user) & (Player_df['Position'] == 'WR')]
-    wr_sum = roster['Projected Points'].sum()
-    wr_sums[i] = wr_sum
-    
-    roster = Player_df[(Player_df['Owner ID'] == user) & (Player_df['Position'] == 'TE')]
-    te_sum = roster['Projected Points'].sum()
-    te_sums[i] = te_sum
-    
-    roster = Player_df[(Player_df['Owner ID'] == user) & (Player_df['Position'] == 'K')]
-    k_sum = roster['Projected Points'].sum()
-    k_sums[i] = k_sum
-    
-    roster = Player_df[(Player_df['Owner ID'] == user) & (Player_df['Position'] == 'DEF')]
-    def_sum = roster['Projected Points'].sum()
-    def_sums[i] = def_sum
+# SLEEPER API: https://docs.sleeper.com/
 
-x = list(userDict.values())
-plt.bar(x, def_sums, color='brown')
-plt.bar(x, k_sums, bottom=def_sums, color='purple')
-plt.bar(x, te_sums, bottom=def_sums+k_sums, color='orange')
-plt.bar(x, wr_sums, bottom=def_sums+k_sums+te_sums, color='blue')
-plt.bar(x, rb_sums, bottom=def_sums+k_sums+te_sums+wr_sums, color='green')
-plt.bar(x, qb_sums, bottom=def_sums+k_sums+te_sums+wr_sums+rb_sums, color='red')
+league = League()
+players = Player()
+rosters = Roster()
+users = User()
 
-plt.xlabel("Teams")
-plt.xticks(fontsize=6, rotation=45)
-plt.ylabel("Projected Score")
-plt.legend()
-plt.show()
+proj_week_7 = WeeklyProjections(7)
+stats_week_6 = WeeklyStatistics(6)
+matchups_week_1 = Matchup(1)
+
+#df = pd.merge(matchups_week_1.df[['roster_id', 'starters', 'matchup_id']], rosters.df[['roster_id', 'owner_id']], on='roster_id', how='inner').rename(columns={'owner_id': 'user_id'})
+#print(pd.merge(df, users.df[['user_id', 'display_name']], on='user_id', how='inner'))
+
+print(proj_week_7.get_player_projected_points(players.get_player_id_from_full_name('Chuba Hubbard'), league.data['scoring_settings']))
+print(stats_week_6.get_player_scored_points(players.get_player_id_from_full_name('Chuba Hubbard'), league.data['scoring_settings']))
